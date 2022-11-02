@@ -8,11 +8,10 @@ from os import getcwd
 import requests
 import re
 #TODO:
-#Combine all into one class
 #Event prioritization
-#Sort based on time AND date (currently just works off date)
-#Have URL loaded from config file rather than programmed in
-#Be able to regenerate config.ini if it gets fucked up
+#Desktop/Email notification
+#GUI for easier management
+
 WORKING_DIR = getcwd()
 Configur = ConfigParser()
 
@@ -24,16 +23,13 @@ class CalendarManager:
         except FileNotFoundError:
             print("Configuration file not found! Recreating...\nYou will have to add your ICS URL to /bin/config.ini!")
             self.regen_cfg()
-        
+        #Basic check to see if config.ini was broken somehow, or if the url is invalid
         if "settings" not in Configur.sections() or "http" not in Configur.get("settings", "URL"):
-            print(Configur.sections())
-            print(("settings" not in Configur.sections()))
-            print(("http" not in Configur.get("settings", "URL")))
             self.regen_cfg()
             
         self.url = Configur.get('settings', 'URL')
         self.calendar = Calendar(requests.get(self.url).text)
-        self.today = date.today()
+        self.today = dt.today()
 
     #Recreates CFG to its base form
     def regen_cfg(self):
@@ -44,37 +40,39 @@ class CalendarManager:
 
     #Re-checks the date
     def update_date(self):
-        self.today = date.today()
+        self.today = dt.today()
 
     #Creates two lists for events in the past and events in the future
     #Returns a tuple with both lists
     #TODO: Use time to further differentiate
     def organize_events(self):
         old, new = [],[]
+        self.update_date()
         for event in self.calendar.events:
-
+            #Splitting the event.begin text into usable shit
             eSplit = re.split(r'[tT+]', str(event.begin))
             dateSplit = eSplit[0].split('-')
-            #Reformatting date to YYYY/MM/DD format for comparison
-            eventDate = date(int(dateSplit[0]),int(dateSplit[1]),int(dateSplit[2]))
+            timeSplit = eSplit[1].split(':')
 
-            if eventDate > self.today:
+            for x in range(0,3):
+                #Redefining everything in the split lists as integer
+                #For use in datetime
+                dateSplit[x] = int(dateSplit[x])
+                timeSplit[x] = int(timeSplit[x])
+
+            #Pulls date and time into one datetime instance
+            eventDate = dt(dateSplit[0], dateSplit[1], dateSplit[2], timeSplit[0], timeSplit[1], timeSplit[2])
+
+            if eventDate >= self.today:
                 new.append(event)
             elif eventDate < self.today:
                 old.append(event)
-            elif eventDate == self.today:
-                timeSplit = eSplit[1].split(":")
-                now = dt.now().time()
-                eTime = time(int(timeSplit[0]), int(timeSplit[1]), int(timeSplit[2]))
-                if now < eTime:
-                    new.append(event)
-                else:
-                    old.append(event)
             else:
                 print("What")
+                #Should never get here lol
                 pass                
         
-        return (old, new)
+        return (sorted(old), sorted(new))
 
 
 if __name__ == "__main__":
