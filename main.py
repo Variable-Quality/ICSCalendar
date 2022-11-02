@@ -13,7 +13,6 @@ import re
 #Sort based on time AND date (currently just works off date)
 #Have URL loaded from config file rather than programmed in
 #Be able to regenerate config.ini if it gets fucked up
-url = 'https://kennesaw.view.usg.edu/d2l/le/calendar/feed/user/feed.ics?token=agcqgnm6m80dlbe9b4b23'
 WORKING_DIR = getcwd()
 Configur = ConfigParser()
 
