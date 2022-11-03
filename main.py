@@ -13,6 +13,7 @@ import re
 #Event prioritization
 #Desktop/Email notification
 #GUI for easier management
+#Dont forget about the fucking samsung calendar sync
 
 WORKING_DIR = getcwd()
 Configur = ConfigParser()
