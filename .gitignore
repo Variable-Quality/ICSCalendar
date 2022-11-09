@@ -1,3 +1,5 @@
 bin/config.ini
 __pycache__/tkinter.cpython-310.pyc
 __pycache__/tkinter.cpython-311.pyc
+bin/client_secret.json
+token.pickle
