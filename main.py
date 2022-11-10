@@ -23,6 +23,100 @@ import re
 WORKING_DIR = getcwd()
 Configur = ConfigParser()
 
+#Used to check if a calendar event already exists
+#May want to try and use the start time of an event to narrow search
+#Need to account for events that aren't in the ICS file
+def search_calendar_events(service, event, len=10):
+    now = dt.utcnow().isoformat()+'Z'
+    events_result = service.events().list(calendarId='primary', timeMin=now, maxResults=len, singleEvents=True, orderBy='startTime').execute()
+    events = events_result.get('items', [])
+
+    if not events:
+        print("Event does not exist yet.")
+        return False
+    
+    found = False
+    eSum = event.name
+
+    for e in events:
+        start = e['summary']
+        if start == eSum:
+            found = True
+            print('Event found!')
+
+    return found
+
+#Converts ICS calendar events into google calendar event objects
+#Need to implement still
+def convert_calendar_event(service, calendar=None, event=None):
+    now = dt.now()
+    if not event:
+        ret = []
+        for ev in calendar.events:
+            eventDateStart = get_ics_date(ev, raw=True).isoformat()+'Z'
+            eventDateEnd = get_ics_date(ev, raw=True, end=True).isoformat()+'Z'
+            gcalEvent = {
+                'summary': ev.name,
+                'location': ev.location,
+                'description': ev.description,
+                'start': {
+                    'dateTime': eventDateStart,
+                    'timeZone': 'America/New_York',
+                },
+                'end': {
+                    'dateTime': eventDateEnd,
+                    'timeZone': 'America/New_York'
+                }
+            }
+            ret.append(gcalEvent)
+
+        return ret
+    else:
+        eventDateStart = get_ics_date(event).isoformat()+'Z'
+        eventDateEnd = get_ics_date(event).isoformat()+'Z'
+
+        gcalEvent = {
+            'summary': event.name,
+            'location': event.location,
+            'description': event.description,
+            'start': {
+                'dateTime': eventDateStart,
+                'timeZone': 'America/New_York',
+            },
+            'end': {
+                'dateTime': eventDateEnd,
+                'timeZone': 'America/New_York'
+            }
+        }
+
+        return gcalEvent
+
+#Returns the ICS date object of a given ICS event
+#May wanna update later to make it work with google calendar too
+def get_ics_date(event, raw=False, end=False):
+    if not end:
+        t = str(event.begin)
+    else:
+        t = str(event.end)
+    
+    if raw:
+        return t
+
+    eSplit = re.split(r'[tT+]', t)
+    dateSplit = eSplit[0].split('-')
+    timeSplit = eSplit[1].split(':')
+
+    for x in range(0,3):
+        #Redefining everything in the split lists as integer
+        #For use in datetime
+        dateSplit[x] = int(dateSplit[x])
+        timeSplit[x] = int(timeSplit[x])
+
+    #Pulls date and time into one datetime instance
+    eventDate = dt(dateSplit[0], dateSplit[1], dateSplit[2], timeSplit[0], timeSplit[1], timeSplit[2])
+
+    return eventDate
+
 class CalendarManager:
 
     def __init__(self):
@@ -50,19 +144,8 @@ class CalendarManager:
     def organize_events(self, ret_old = False, ret_new = False):
         old, new = [],[]
         for event in self.calendar.events:
-            #Splitting the event.begin text into usable shit
-            eSplit = re.split(r'[tT+]', str(event.begin))
-            dateSplit = eSplit[0].split('-')
-            timeSplit = eSplit[1].split(':')
-
-            for x in range(0,3):
-                #Redefining everything in the split lists as integer
-                #For use in datetime
-                dateSplit[x] = int(dateSplit[x])
-                timeSplit[x] = int(timeSplit[x])
-
-            #Pulls date and time into one datetime instance
-            eventDate = dt(dateSplit[0], dateSplit[1], dateSplit[2], timeSplit[0], timeSplit[1], timeSplit[2])
+            
+            eventDate = get_ics_date(event)
 
             if eventDate >= dt.today():
                 new.append(event)
@@ -117,29 +200,39 @@ class CalendarManager:
     #Does whatever I need it to
     def debug(self):
         service = self.get_calendar_service()
-        d = dt.now().date()
-        tomorrow = dt(d.year, d.month, d.day, 10)+timedelta(days=1)
-        start = tomorrow.isoformat()
-        end = (tomorrow+timedelta(hours=1)).isoformat()
+        upcoming = self.organize_events(ret_new=True)
+        for event in upcoming:
+            if not search_calendar_events(service, event, len(upcoming)):
+                gcalEvent = convert_calendar_event(service, event=event)
+                service.events().insert(calendarId='primary', body=gcalEvent).execute()
+                print(gcalEvent)
+                print("Added Event to calendar!")
 
-        event_result = service.events().insert(calendarId='primary',
-        body = {
-            "summary": "Test event",
-            "description": "Fortnite balls, im gay",
-            "start": {"dateTime": start, "timeZone": "America/New_York"},
-            "end": {"dateTime": end, "timeZone": "America/New_York"},
-        }
-        ).execute()
+        print("Done!")
 
-        print("Created New Event: \n")
-        print("id: ", event_result['id'])
-        print("summary: ", event_result['summary'])
-        print("description: ", event_result['description'])
-        print('Start: ', event_result['start']['dateTime'])
-        print('End: ', event_result['end']['dateTime'])
+
 
 
     #Old code saved for reference
+
+    #event_result = service.events().insert(calendarId='primary',
+    #body = {
+    #    "summary": "Test event",
+    #    "description": "Fortnite balls, im gay",
+    #    "start": {"dateTime": start, "timeZone": "America/New_York"},
+    #    "end": {"dateTime": end, "timeZone": "America/New_York"},
+    #}
+    #).execute()
+
+    #print("Created New Event: \n")
+    #print("id: ", event_result['id'])
+    #print("summary: ", event_result['summary'])
+    #print("description: ", event_result['description'])
+    #print('Start: ', event_result['start']['dateTime'])
+    #print('End: ', event_result['end']['dateTime'])
+
+    #############################################################################
+    
     #    service = self.get_calendar_service()
     #    cal_res = service.calendarList().list().execute()
     #
