@@ -73,7 +73,7 @@ def convert_calendar_event(service, calendar=None, event=None):
         return ret
     else:
         eventDateStart = get_ics_date(event).isoformat()+'Z'
-        eventDateEnd = get_ics_date(event).isoformat()+'Z'
+        eventDateEnd = get_ics_date(event, end = True).isoformat()+'Z'
 
         gcalEvent = {
             'summary': event.name,
@@ -117,6 +117,22 @@ def get_ics_date(event, raw=False, end=False):
 
     return eventDate
 
+#Compares dates between an ical event and a google calendar event
+#Returns a tuple of booleans
+#First bool is if the start date is the same, second bool is if the end date is the same
+#May remake in the future to be more versatile but atm doesnt need to be
+def compare_dates(event, gcalEvent):
+    startSame = False
+    endSame = False
+
+    icalStart = get_ics_date(event).isoformat()+'Z'
+    icalEnd = get_ics_date(event, end= True).isoformat()+'Z'
+
+    gcalStart = gcalEvent['start'].get('dateTime', gcalEvent['start'].get('date'))
+    print(gcalStart)
+    print(icalStart)
+    print(icalEnd)
+
 class CalendarManager:
 
     def __init__(self):
@@ -141,7 +157,7 @@ class CalendarManager:
 
     #Creates two lists for events in the past and events in the future
     #Returns a tuple with both lists
-    def organize_events(self, ret_old = False, ret_new = False):
+    def organize_ical_events(self, ret_old = False, ret_new = False):
         old, new = [],[]
         for event in self.calendar.events:
             
@@ -165,10 +181,22 @@ class CalendarManager:
         else:
             return (sorted(old), sorted(new))
 
-    #Constitutes the main loop for the program
-    def run(self):
-        #TODO: Implement a tkinter notification window
-        return
+    #Does the same as organize_ical_events but for google events
+    #Luckily google does a bit more legwork when it comes to sorting these 
+    def get_google_events(self, num_events=10, now=dt.now().isoformat()+'Z'):
+        service = self.get_calendar_service()
+
+        events_result = service.events().list(calendarId='primary', timeMin=now,
+                                             maxResults=num_events, singleEvents=True,
+                                             orderBy='startTime').execute()
+        
+        events = events_result.get('items', [])
+
+        if not events:
+            print("No upcoming events found")
+            return None
+
+        return events
 
     def get_calendar_service(self):
         #This links up to the google calendar service
@@ -199,8 +227,23 @@ class CalendarManager:
 
     #Does whatever I need it to
     def debug(self):
+        icalUpcoming = self.organize_ical_events(ret_new = True)
+        googleUpcoming = self.get_google_events()
+        
+        for e in icalUpcoming:
+
+            for event in googleUpcoming:
+
+                compare_dates(e, event)
+            
+            print("\nical event exhausted, moving on...\n")
+
+
+    #Will eventually become the main loop of the program
+    #Still needs some backbone to it
+    def run(self):
         service = self.get_calendar_service()
-        upcoming = self.organize_events(ret_new=True)
+        upcoming = self.organize_ical_events(ret_new=True)
         for event in upcoming:
             if not search_calendar_events(service, event, len(upcoming)):
                 gcalEvent = convert_calendar_event(service, event=event)
