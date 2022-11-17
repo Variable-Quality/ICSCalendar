@@ -47,10 +47,10 @@ def search_calendar_events(service, event, len=10):
     return found
 
 #Converts ICS calendar events into google calendar event objects
-#Need to implement still
-def convert_calendar_event(service, calendar=None, event=None):
+#Or vice versa, depending on if goog is true
+def convert_calendar_event(service, calendar=None, event=None, goog=False):
     now = dt.now()
-    if not event:
+    if not event and not goog:
         ret = []
         for ev in calendar.events:
             eventDateStart = get_ics_date(ev, raw=True).isoformat()+'Z'
@@ -71,7 +71,7 @@ def convert_calendar_event(service, calendar=None, event=None):
             ret.append(gcalEvent)
 
         return ret
-    else:
+    elif event and not goog:
         eventDateStart = get_ics_date(event).isoformat()+'Z'
         eventDateEnd = get_ics_date(event, end = True).isoformat()+'Z'
 
@@ -90,6 +90,25 @@ def convert_calendar_event(service, calendar=None, event=None):
         }
 
         return gcalEvent
+    
+    #If the event being passed in is a google calendar event
+    #Convert it to an ICS calendar event
+    #This is mostly used for comparisons
+    #May implement the ability to put in a list of events later
+    if goog:
+        googDatetime = event['start'].get('dateTime')
+        sp = re.split(r'[tT-]', googDatetime)
+        #Date is sp[0], sp[1], sp[2], start time is sp[3], end time is sp[4]
+        #At least for single day events, multi day events are another story
+        print(sp)
+        startSplit = sp[3].split(':')
+        endSplit = sp[4].split(':')
+        return (dt(int(sp[0]),int(sp[1]),int(sp[2]),
+                    int(startSplit[0]),int(startSplit[1]),int(startSplit[2])),
+                   #End split is only 2 items long for whatever reason 
+                dt(int(sp[0]),int(sp[1]),int(sp[2]),
+                    int(endSplit[0]),int(endSplit[1]),00))
+
 
 #Returns the ICS date object of a given ICS event
 #May wanna update later to make it work with google calendar too
@@ -121,15 +140,19 @@ def get_ics_date(event, raw=False, end=False):
 #Returns a tuple of booleans
 #First bool is if the start date is the same, second bool is if the end date is the same
 #May remake in the future to be more versatile but atm doesnt need to be
-def compare_dates(event, gcalEvent):
+def compare_dates(service, event, gcalEvent):
     startSame = False
     endSame = False
 
     icalStart = get_ics_date(event).isoformat()+'Z'
     icalEnd = get_ics_date(event, end= True).isoformat()+'Z'
 
-    gcalStart = gcalEvent['start'].get('dateTime', gcalEvent['start'].get('date'))
-    print(gcalStart)
+    
+    gcalStart, gcalEnd = convert_calendar_event(service, event=gcalEvent, goog=True)
+    print("\nGoogle Calendar Values:\n")
+    print(gcalStart.isoformat()+'Z')
+    print(gcalEnd.isoformat()+'Z')
+    print("\niCal values:\n")
     print(icalStart)
     print(icalEnd)
 
@@ -229,14 +252,17 @@ class CalendarManager:
     def debug(self):
         icalUpcoming = self.organize_ical_events(ret_new = True)
         googleUpcoming = self.get_google_events()
+        service = self.get_calendar_service()
         
-        for e in icalUpcoming:
+        compare_dates(service, icalUpcoming[0], googleUpcoming[0])
 
-            for event in googleUpcoming:
+        #for e in icalUpcoming:
 
-                compare_dates(e, event)
+            #for event in googleUpcoming:
+                
+                #compare_dates(service, e, event)
             
-            print("\nical event exhausted, moving on...\n")
+            #print("\nical event exhausted, moving on...\n")
 
 
     #Will eventually become the main loop of the program
