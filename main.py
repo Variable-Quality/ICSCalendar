@@ -26,7 +26,7 @@ Configur = ConfigParser()
 #Used to check if a calendar event already exists
 #May want to try and use the start time of an event to narrow search
 #Need to account for events that aren't in the ICS file
-def search_calendar_events(service, event, len=10):
+def search_calendar_events(service, event, len=10, date=None):
     now = dt.utcnow().isoformat()+'Z'
     events_result = service.events().list(calendarId='primary', timeMin=now, maxResults=len, singleEvents=True, orderBy='startTime').execute()
     events = events_result.get('items', [])
@@ -40,9 +40,14 @@ def search_calendar_events(service, event, len=10):
 
     for e in events:
         start = e['summary']
-        if start == eSum:
+        if start == eSum and not date:
             found = True
             print('Event found!')
+        #Untested
+        elif start == eSum and date:
+            if e['start'] == date.isoformat()+'Z':
+                found = True
+                print('Date matches!')
 
     return found
 
