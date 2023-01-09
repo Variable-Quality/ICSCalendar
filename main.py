@@ -1,7 +1,9 @@
 from ics import Calendar
+import webbrowser
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from configparser import ConfigParser
 from datetime import datetime as dt
 from datetime import timedelta
@@ -152,12 +154,11 @@ def compare_dates(service, event, gcalEvent):
     icalStart = get_ics_date(event).isoformat()+'Z'
     icalEnd = get_ics_date(event, end= True).isoformat()+'Z'
 
-    
     gcalStart, gcalEnd = convert_calendar_event(service, event=gcalEvent, goog=True)
-    print("\nGoogle Calendar Values:\n")
+    print(f"\nGoogle Calendar Values for event {gcalEvent['summary']}\n")
     print(gcalStart.isoformat()+'Z')
     print(gcalEnd.isoformat()+'Z')
-    print("\niCal values:\n")
+    print(f"\niCal values for event {event['name']}:\n")
     print(icalStart)
     print(icalEnd)
 
@@ -174,6 +175,7 @@ class CalendarManager:
             self.regen_cfg()
             
         self.url = Configur.get('settings', 'URL')
+        self.JSON = Configur.get('settings', 'JSON')
         self.calendar = Calendar(requests.get(self.url).text)
 
     #Recreates CFG to its base form
@@ -242,7 +244,12 @@ class CalendarManager:
         #If it doesn't, we make it or refresh it
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                try:
+                    creds.refresh(Request())
+                except RefreshError:
+                    print("It has been more than 7 days since the last token was issued, and I'm not gonna pay google for this. So, make a new one.")
+                    webbrowser.open(self.JSON, new=2)
+                    raise Exception("Testing token has expired.")
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
                 creds = flow.run_local_server(port=0)
